@@ -1,0 +1,69 @@
+{% extends "base.html" %} {% load static %} {% block head %}
+<link
+  rel="stylesheet"
+  href="{% static 'empresarios/css/listar_empresas.css' %}"
+/>
+<link rel="stylesheet" href="{% static 'usuarios/css/usuarios.css' %}" />
+{% endblock %} {% block body %} {% include "partials/barra_navegacao.html" %}
+<br /><br />
+<div class="container">
+  <div class="row">
+    <div class="col-md-4">
+      <form action="{% url 'listar_empresas' %}" method="GET">
+        <label for="empresa">Empresa</label>
+        <input
+          type="text"
+          id="empresa"
+          name="empresa"
+          class="form-control"
+          placeholder="Busque por uma empresa em específico"
+        />
+        <br />
+        <input type="submit" value="Filtrar" class="btn btn-outline-primary" />
+      </form>
+    </div>
+  </div>
+</div>
+<br />
+<div class="container dark-color container_empresas">
+  <table class="table">
+    <thead>
+      <tr class="cabecalho" style="background-color: transparent !important">
+        <th class="cabecalho" scope="col">Nome</th>
+        <th class="cabecalho" scope="col">Percentual captado</th>
+        <th class="cabecalho" scope="col">Status</th>
+        <th class="cabecalho" scope="col">Ação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for empresa in empresas %}
+      <tr class="linha">
+        <td class="linha">{{ empresa.nome }}</td>
+        <td class="linha">
+          <div class="progress">
+            <div
+              class="progress-bar bg-success"
+              role="progressbar"
+              style="width: {{ empresa.percentual_equity|floatformat:0 }}%"
+              aria-valuenow="{{ empresa.percentual_equity }}"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            ></div>
+          </div>
+        </td>
+        <td class="linha">{{ empresa.estagio }}</td>
+        <td class="linha">
+          <a href="{% url 'empresa' empresa.id %}" class="btn btn-indigo-normal"
+            >Abrir</a
+          >
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4" class="text-center">Nenhuma empresa encontrada.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
