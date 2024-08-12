@@ -1,11 +1,10 @@
-from django.shortcuts import render, redirect
-from .models import Empresas, Documento, Metricas
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.messages import constants
 from django.http import Http404
-import logging
-
-logger = logging.getLogger(__name__)
+from .models import Empresas, Documento, Metricas
+from investidores.models import PropostaInvestimento
+import mimetypes
 
 def validar_campos_obrigatorios(dados, campos_obrigatorios):
     erros = {}
@@ -33,7 +32,7 @@ def cadastrar_empresa(request):
             'descricao': request.POST.get('descricao'),
             'data_final': request.POST.get('data_final'),
             'percentual_equity': request.POST.get('percentual_equity'),
-            'estagio': request.POST.getlist('estagio'),  # Manejo de checkboxes
+            'estagio': request.POST.getlist('estagio'),
             'area': request.POST.get('area'),
             'publico_alvo': request.POST.get('publico_alvo'),
             'valor': request.POST.get('valor')
@@ -74,16 +73,24 @@ def cadastrar_empresa(request):
                 descricao=dados['descricao'],
                 data_final_captacao=dados['data_final'],
                 percentual_equity=dados['percentual_equity'],
-                estagio=','.join(dados['estagio']),  # Salvando múltiplos valores como uma string
+                estagio=','.join(dados['estagio']),
                 area=dados['area'],
                 publico_alvo=dados['publico_alvo'],
                 valor=dados['valor'],
                 pitch=pitch,
-                logo=logo  # Assume que logo é um arquivo
+                logo=logo
             )
             empresa.save()
             messages.add_message(request, constants.SUCCESS, 'Empresa criada com sucesso')
             return redirect('/empresarios/cadastrar_empresa')
+        except ValueError as ve:
+            messages.add_message(request, constants.ERROR, f'Erro nos dados: {ve}')
+            return render(request, 'cadastrar_empresa.html', {
+                'tempo_existencia': Empresas.tempo_existencia_choices,
+                'areas': Empresas.area_choices,
+                'dados': request.POST,
+                'errors': {'internal': 'Erro nos dados.'},
+            })
         except Exception as e:
             logger.error(f"Erro ao cadastrar empresa: {e}")
             messages.add_message(request, constants.ERROR, 'Erro interno do sistema. Tente novamente mais tarde.')
@@ -100,25 +107,28 @@ def listar_empresas(request):
         return render(request, 'listar_empresas.html', {'empresas': empresas})
 
 def empresas(request, id):
+    empresa = get_object_or_404(Empresas, id=id, user=request.user)
     if empresa.user != request.user:
-        messages.add_message(request, constants.ERROR, "Esta não é sua empresa.")
-        return redirect(f'/empresarios/listar_empresas')
-    try:
-        empresa = Empresas.objects.get(id=id, user=request.user)
-    except Empresas.DoesNotExist:
-        raise Http404('Empresa não encontrada')
-
+        messages.add_message(request, constants.ERROR, "Essa empresa não é sua.")
+        
     if request.method == "GET":
         documentos = Documento.objects.filter(empresa=empresa)
-        return render(request, 'empresa.html', {'empresa': empresa, 'documentos': documentos})
-    
-def add_doc(request, id):
-    try:
-        empresa = Empresas.objects.get(id=id, user=request.user)
-    except Empresas.DoesNotExist:
-        messages.add_message(request, constants.ERROR, "Empresa não encontrada.")
-        return redirect(f'/empresarios/listar_empresas')
+        proposta_investimentos = PropostaInvestimento.objects.filter(empresa=empresa)
+        percentual_vendido = 0
+        for pi in proposta_investimentos:
+            if pi.status == 'PA':
+                percentual_vendido += pi.percentual
+                
+        total_captado = sum(proposta_investimentos.filter(status='PA').values_list('valor', flat=True))        
 
+        valuation_atual = (100 * float(total_captado)) / float(percentual_vendido) if percentual_vendido != 0 else 0
+
+        proposta_investimentos_enviada = proposta_investimentos.filter(status='PE')
+    return render(request, 'empresa.html', {'empresa': empresa, 'documentos': documentos, 'proposta_investimentos_enviada': proposta_investimentos_enviada, 'percentual_vendido': int(percentual_vendido), 'total_captado': total_captado, 'valuation_atual': valuation_atual})
+        
+
+def add_doc(request, id):
+    empresa = get_object_or_404(Empresas, id=id, user=request.user)
     if request.method == "POST":
         titulo = request.POST.get('titulo')
         arquivo = request.FILES.get('arquivo')
@@ -127,8 +137,9 @@ def add_doc(request, id):
             messages.add_message(request, constants.ERROR, "Envie um arquivo.")
             return redirect(f'/empresarios/empresa/{id}')
 
-        if not arquivo.name.endswith('.pdf'):
-            messages.add_message(request, constants.ERROR, "Envie apenas PDF's.")
+        mime_type, _ = mimetypes.guess_type(arquivo.name)
+        if mime_type != 'application/pdf':
+            messages.add_message(request, constants.ERROR, "Envie apenas PDFs.")
             return redirect(f'/empresarios/empresa/{id}')
 
         documento = Documento(
@@ -139,7 +150,6 @@ def add_doc(request, id):
         documento.save()
         messages.add_message(request, constants.SUCCESS, "Arquivo cadastrado com sucesso.")
         return redirect(f'/empresarios/empresa/{id}')
-
 
 def excluir_dc(request, id):
     try:
@@ -155,14 +165,8 @@ def excluir_dc(request, id):
         messages.add_message(request, constants.ERROR, "Documento não encontrado.")
         return redirect('/empresarios/listar_empresas')
 
-
 def add_metrica(request, id):
-    try:
-        empresa = Empresas.objects.get(id=id, user=request.user)
-    except Empresas.DoesNotExist:
-        messages.add_message(request, constants.ERROR, "Empresa não encontrada.")
-        return redirect(f'/empresarios/listar_empresas')
-
+    empresa = get_object_or_404(Empresas, id=id, user=request.user)
     if request.method == "POST":
         titulo = request.POST.get('titulo')
         valor = request.POST.get('valor')
@@ -180,3 +184,17 @@ def add_metrica(request, id):
         messages.add_message(request, constants.SUCCESS, "Métrica cadastrada com sucesso.")
         return redirect(f'/empresarios/empresa/{id}')
 
+def gerenciar_proposta(request, id):
+    acao = request.GET.get('acao')
+    pi = PropostaInvestimento.objects.get(id=id)
+
+    if acao == 'aceitar':
+        messages.add_message(request, constants.SUCCESS, 'Proposta aceita')
+        pi.status = 'PA'
+    elif acao == 'recusar':
+        messages.add_message(request, constants.SUCCESS, 'Proposta recusada')
+        pi.status = 'PR'
+
+
+    pi.save()
+    return redirect(f'/empresarios/empresa/{pi.empresa.id}')

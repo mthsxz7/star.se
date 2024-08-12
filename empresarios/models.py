@@ -1,8 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
-from datetime import date
 
+from datetime import date
 
 class Empresas(models.Model):
     tempo_existencia_choices = (
@@ -24,19 +24,19 @@ class Empresas(models.Model):
     )
     
     user = models.ForeignKey(User, on_delete=models.DO_NOTHING)
-    nome = models.CharField(max_length=255)  # Aumentado o comprimento para o nome da empresa
-    cnpj = models.CharField(max_length=18)  # Ajustado para o comprimento típico do CNPJ
-    site = models.URLField(blank=True, null=True)  # Permite nulo para URLs opcionais
+    nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=18)
+    site = models.URLField(blank=True, null=True)
     tempo_existencia = models.CharField(max_length=2, choices=tempo_existencia_choices, default='-6')
     descricao = models.TextField()
     data_final_captacao = models.DateField()
-    percentual_equity = models.DecimalField(max_digits=5, decimal_places=2)  # Ajustado para melhor precisão
+    percentual_equity = models.DecimalField(max_digits=5, decimal_places=2)
     estagio = models.CharField(max_length=4, choices=estagio_choices, default='I')
     area = models.CharField(max_length=3, choices=area_choices)
-    publico_alvo = models.CharField(max_length=255)  # Aumentado o comprimento para descrever o público-alvo
-    valor = models.DecimalField(max_digits=15, decimal_places=2)  # Ajustado para o valor total a ser vendido
-    pitch = models.FileField(upload_to='pitches/')  # Corrigido o upload_to
-    logo = models.CharField(max_length=255, blank=True, null=True)  # Alterado para CharField para URL ou caminho da imagem
+    publico_alvo = models.CharField(max_length=255)
+    valor = models.DecimalField(max_digits=15, decimal_places=2)
+    pitch = models.FileField(upload_to='pitches/')
+    logo = models.FileField(upload_to='logos/', blank=True, null=True)  # Substituído por CharField
 
     def __str__(self):
         username = getattr(self.user, 'username', 'Usuário Desconhecido')
@@ -44,7 +44,7 @@ class Empresas(models.Model):
 
     @property
     def status(self):
-        if date.today() >self.data_final_captacao:
+        if date.today() > self.data_final_captacao:
             return mark_safe('<span class="badge bg-success">Captação finalizada</span>')
         return mark_safe('<span class="badge bg-primary">Em captação</span>')
 
@@ -66,4 +66,5 @@ class Metricas(models.Model):
     valor = models.FloatField()
 
     def __str__(self):
-        return str(self.titulo) if self.titulo else "Título indisponível"
+        return str(self.titulo) if str(self.titulo) else "Título indisponível"
+

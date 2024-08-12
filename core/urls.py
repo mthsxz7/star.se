@@ -8,5 +8,4 @@ urlpatterns = [
     path('usuarios/', include('usuarios.urls')),
     path('empresarios/', include('empresarios.urls')),
     path('investidores/', include('investidores.urls')),
-    
-]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
