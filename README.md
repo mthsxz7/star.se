@@ -47,7 +47,6 @@ O sistema STAR.SE será desenvolvido com as seguintes funcionalidades principais
    ```bash
    python manage.py runserver
    ```
-   contributing_content = """
    
 
 # Guia de Contribuição
